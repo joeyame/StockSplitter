@@ -18,7 +18,10 @@ def _():
 def _(requests):
     url = "https://www.slickcharts.com/sp500"
 
-    request = requests.get(url, headers={"User-Agent": "Mozilla/5.0"})
+    request = requests.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0", "Access-Control-Allow-Origin": "*"},
+    )
     return (request,)
 
 
