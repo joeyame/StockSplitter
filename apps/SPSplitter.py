@@ -11,7 +11,8 @@ def _():
     import bs4
     import pandas as pd
     from io import StringIO
-    return StringIO, bs4, mo, pd, requests
+    import openpyxl
+    return mo, pd, requests
 
 
 @app.cell
@@ -20,41 +21,38 @@ def _(requests):
 
     request = requests.get(
         url,
-        headers={"User-Agent": "Mozilla/5.0", "Access-Control-Allow-Origin": "*"},
+        headers={
+            "User-Agent": "Mozilla/5.0",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, PUT, POST, DELETE, OPTIONS",
+            "Access-Control-Max-Age": "1000",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+            "Origin": "https://www.slickcharts.com",
+        },
     )
-    return (request,)
+    return
 
 
 @app.cell
-def _(StringIO, bs4, pd, request):
-    soup = bs4.BeautifulSoup(request.text, "lxml")
-
-    stats = soup.find(
-        "table", class_="table table-hover table-borderless table-sm"
-    )
-
-    df = pd.read_html(
-        StringIO(str(stats)),
-        converters={3: lambda x: float(x[:-1]) / 100, 4: lambda x: float(x[4:])},
-        index_col=0,
-    )[0]
-    df.rename(columns={df.columns[3]: "Price"}, inplace=True)
-    df.sort_values(by="Weight", ascending=False, inplace=True)
-
-    # Convert price column to be the actual price
-    # df["Price"] = df[r"Â Â Â Â Â Â Price"].str.replace(r"Â", "").str.replace(" ", "").astype(float)
-    return (df,)
-
-
-@app.cell
-def _(df, get_num_stocks, invest_amount):
-    trimmed_stocks = df.iloc[0 : get_num_stocks()]
+def _(get_num_stocks, invest_amount, spData):
+    trimmed_stocks = spData.iloc[0 : get_num_stocks()]
     total_weight = trimmed_stocks["Weight"].sum()
     trimmed_stocks.loc[:, "Weight"] = trimmed_stocks["Weight"] / total_weight
     trimmed_stocks = trimmed_stocks.assign(
         InvestmentAmount=trimmed_stocks["Weight"] * invest_amount.value
     )
     return (trimmed_stocks,)
+
+
+@app.cell
+def _(pd):
+    # Grab current S&P Holdings by Weight
+    spData = pd.read_excel(
+        "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-spy.xlsx",
+        skiprows=4,
+        converters={"Weight": lambda x: float(x) / 100},
+    ).dropna(subset=["Weight"])
+    return (spData,)
 
 
 @app.cell(column=1)
@@ -124,7 +122,7 @@ def _(invest_amount, mo, num_stocks_text):
 def _(mo, trimmed_stocks):
     cards = []
     for i, row in trimmed_stocks.iterrows():
-        symbol = row.Symbol
+        symbol = row.Ticker
         card = mo.stat(
             label=symbol,
             value=f"${row.InvestmentAmount:.2f}",
